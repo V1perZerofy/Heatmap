@@ -104,7 +104,7 @@ struct TonightCard: View {
                     }
                     if pick.leftover {
                         Button("Eat something else") { changing = true }
-                            .buttonStyle(.bordered)
+                            .glassButton()
                     } else if pick.cooked {
                         Label("Cooked", systemImage: "checkmark.circle.fill")
                             .foregroundStyle(Palette.flame)
@@ -116,10 +116,10 @@ struct TonightCard: View {
                             .foregroundStyle(missing.isEmpty ? Color.secondary : Palette.flame)
                         HStack {
                             Button("Change") { changing = true }
-                                .buttonStyle(.bordered)
+                                .glassButton()
                             Spacer()
                             Button("Cooked") { cooking = true }
-                                .buttonStyle(.borderedProminent)
+                                .glassButton(prominent: true)
                         }
                     }
                 } else {
@@ -288,7 +288,8 @@ struct MealChooser: View {
                             .font(.headline)
                             .frame(maxWidth: .infinity, minHeight: 48)
                             .foregroundStyle(on ? Color.black : Color.primary)
-                            .background(on ? Palette.flame : Color.gray.opacity(0.18), in: RoundedRectangle(cornerRadius: 12))
+                            .glassBackground(on ? Palette.flame : nil, in: RoundedRectangle(cornerRadius: 12),
+                                             fallback: on ? Palette.flame : Color.gray.opacity(0.18))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(m >= 45 ? "45 minutes or more" : "\(m) minutes")
@@ -311,13 +312,13 @@ struct MealChooser: View {
                 }
                 HStack {
                     Button("Another one") { reroll() }
-                        .buttonStyle(.bordered)
+                        .glassButton()
                     Spacer()
                     Button("Take it") {
                         model.choose(s, for: day, servings: servings)
                         onDone()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .glassButton(prominent: true)
                 }
             } else if let m = minutes {
                 Text("Nothing fits in \(m) minutes. Add a quicker meal under Your meals.")

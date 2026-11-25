@@ -37,6 +37,7 @@ struct RootView: View {
                 .tabItem { Label("Food", systemImage: "fork.knife") }
                 .tag(AppTab.food)
         }
+        .minimizingTabBar()
         .tint(Palette.flame)
         .fontDesign(.rounded)
         .preferredColorScheme(.dark)

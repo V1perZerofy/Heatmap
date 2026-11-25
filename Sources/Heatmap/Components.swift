@@ -60,3 +60,37 @@ func timeBinding(_ minutes: Binding<Int>) -> Binding<Date> {
 func formatTime(_ minutes: Int) -> String {
     String(format: "%02d:%02d", (minutes / 60) % 24, minutes % 60)
 }
+
+// MARK: - Liquid Glass (iOS 26+), with the previous look as fallback
+
+extension View {
+    /// Glass behind a custom control, tinted and reacting to touch. Before iOS 26: a solid fill.
+    @ViewBuilder
+    func glassBackground<S: Shape>(_ tint: Color?, in shape: S, fallback: Color) -> some View {
+        if #available(iOS 26, *) {
+            self.glassEffect(.regular.tint(tint).interactive(), in: shape)
+        } else {
+            self.background(fallback, in: shape)
+        }
+    }
+
+    /// Glass button style on iOS 26, bordered before.
+    @ViewBuilder
+    func glassButton(prominent: Bool = false) -> some View {
+        if #available(iOS 26, *) {
+            if prominent { self.buttonStyle(.glassProminent) } else { self.buttonStyle(.glass) }
+        } else {
+            if prominent { self.buttonStyle(.borderedProminent) } else { self.buttonStyle(.bordered) }
+        }
+    }
+
+    /// Tab bar shrinks while scrolling down on iOS 26.
+    @ViewBuilder
+    func minimizingTabBar() -> some View {
+        if #available(iOS 26, *) {
+            self.tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            self
+        }
+    }
+}

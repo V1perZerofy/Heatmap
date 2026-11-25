@@ -62,7 +62,7 @@ struct HabitsView: View {
                             .font(.headline)
                             .frame(maxWidth: .infinity, minHeight: 50)
                     }
-                    .buttonStyle(.bordered)
+                    .glassButton()
                     .padding(.top, 4)
                 }
                 .padding(.horizontal, 10)
@@ -155,7 +155,7 @@ struct HabitCard: View {
                     Image(systemName: "play.fill")
                         .foregroundStyle(habit.color)
                         .frame(width: 44, height: 44)
-                        .background(habit.color.opacity(0.22), in: Circle())
+                        .glassBackground(habit.color.opacity(0.3), in: Circle(), fallback: habit.color.opacity(0.22))
                 }
                 .accessibilityLabel("Start focus timer")
 
@@ -164,7 +164,8 @@ struct HabitCard: View {
                         .font(.subheadline.weight(.semibold))
                         .padding(.horizontal, 12)
                         .frame(height: 36)
-                        .background(done ? habit.color.opacity(0.28) : Color.gray.opacity(0.18), in: Capsule())
+                        .glassBackground(done ? habit.color.opacity(0.4) : nil, in: Capsule(),
+                                         fallback: done ? habit.color.opacity(0.28) : Color.gray.opacity(0.18))
                         .foregroundStyle(done ? Color.primary : Color.secondary)
                 }
                 .sensoryFeedback(.success, trigger: done)
@@ -378,7 +379,7 @@ struct DayEditor: View {
                     Button { minutes = max(0, minutes - 15) } label: {
                         Image(systemName: "minus").frame(width: 50, height: 40)
                     }
-                    .buttonStyle(.bordered)
+                    .glassButton()
                     .accessibilityLabel("15 minutes less")
 
                     VStack(spacing: 0) {
@@ -392,7 +393,7 @@ struct DayEditor: View {
                     Button { minutes = min(1440, minutes + 15) } label: {
                         Image(systemName: "plus").frame(width: 50, height: 40)
                     }
-                    .buttonStyle(.bordered)
+                    .glassButton()
                     .accessibilityLabel("15 minutes more")
                 }
 
@@ -412,7 +413,7 @@ struct DayEditor: View {
                         model.setMinutes(habitID, day: day, minutes: minutes)
                         dismiss()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .glassButton(prominent: true)
                     .tint(habit?.color ?? Palette.flame)
                 }
             }
@@ -473,7 +474,7 @@ struct FocusView: View {
                         Button(s.running ? "Pause" : "Resume") {
                             if s.running { timer.pause() } else { timer.resume() }
                         }
-                        .buttonStyle(.bordered)
+                        .glassButton()
 
                         Button("Finish and log") {
                             if let result = timer.finish() {
@@ -481,11 +482,11 @@ struct FocusView: View {
                             }
                             dismiss()
                         }
-                        .buttonStyle(.borderedProminent)
+                        .glassButton(prominent: true)
                         .tint(color)
 
                         Button("Discard", role: .destructive) { confirmDiscard = true }
-                            .buttonStyle(.bordered)
+                            .glassButton()
                     }
                     .controlSize(.large)
 
