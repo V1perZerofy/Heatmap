@@ -34,3 +34,6 @@ Renew every 7 days with `xtool dev`. The data stays.
 - `Sources/HeatmapWidget`: home screen widget and the Live Activity
 - `App-Info.plist`: enables Live Activities
 - `Resources/AppIcon.png`: icon
+## License
+
+MIT, see [LICENSE](LICENSE).
