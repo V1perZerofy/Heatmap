@@ -2,6 +2,12 @@
 
 A small habit tracker with a food helper, built from Linux/Windows with xtool.
 
+<p align="center">
+  <img src="docs/screenshots/habits.png" width="250" alt="Habits tab with yearly heatmaps">
+  <img src="docs/screenshots/food.png" width="250" alt="Food tab with meal picker and shopping list">
+  <img src="docs/screenshots/edit-habit.png" width="250" alt="Editing a habit: days, icon and colour">
+</p>
+
 ## Habits
 - Heatmap cards for each habit: streak, Done, focus timer
 - Streaks skip days a habit isn't scheduled on, and forgive one missed day per week (snowflake)
