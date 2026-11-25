@@ -1,0 +1,31 @@
+# macOS / editors
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Swift / SwiftPM build output
+/.build
+/Packages
+/.swiftpm
+*.xcodeproj
+xcuserdata/
+
+# xtool (local build output, signing state, build-server config)
+/xtool
+/.bsp
+
+# Signing material and credentials
+*.mobileprovision
+*.provisionprofile
+*.p12
+*.cer
+*.pem
+*.key
+.env
+.env.*
+
+# Local notes / personal files
+*.local
+*.local.*
+.claude/settings.local.json

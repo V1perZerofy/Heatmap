@@ -1,0 +1,10 @@
+version: 1
+bundleID: dev.niels.Heatmap
+product: Heatmap
+infoPath: App-Info.plist
+iconPath: Resources/AppIcon.png
+entitlementsPath: App.entitlements
+extensions:
+  - product: HeatmapWidget
+    infoPath: HeatmapWidget-Info.plist
+    entitlementsPath: Widget.entitlements
