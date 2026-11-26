@@ -576,7 +576,7 @@ struct HabitDetail: View {
         let minutes = monthDays.reduce(0) { $0 + (h.minutes(on: $1) ?? 0) }
         return HStack(alignment: .top, spacing: 12) {
             stat("\(h.streak().days)", "current streak", Palette.flame)
-            stat("\(bestStreak(h))", "best streak", .primary)
+            stat("\(h.bestStreak())", "best streak", .primary)
             stat("\(done)/\(max(scheduled, done))", "days this month", .primary)
             stat(formatMinutes(minutes), "this month", .primary)
         }
@@ -594,24 +594,6 @@ struct HabitDetail: View {
             Text(caption).font(.caption).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Longest run of done days, skipping days the habit isn't scheduled on.
-    private func bestStreak(_ h: Habit) -> Int {
-        guard let first = h.log.keys.min(), var day = DayKey.date(fromKey: first) else { return 0 }
-        let end = cal.startOfDay(for: Date())
-        var best = 0, run = 0
-        while day <= end {
-            if h.isDone(on: day) {
-                run += 1
-                best = max(best, run)
-            } else if h.isScheduled(on: day) && day < end {
-                run = 0
-            }
-            guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
-            day = next
-        }
-        return best
     }
 
     // MARK: Month calendar

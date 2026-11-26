@@ -74,6 +74,32 @@ public struct Habit: Codable, Identifiable, Hashable {
         return StreakInfo(days: count, freezeUsedThisWeek: count > 0 && frozenWeeks.contains(thisWeek))
     }
 
+    /// Longest streak ever, by the same rules as `streak`: the longest stretch with at most one
+    /// missed scheduled day per week, counting its done days.
+    public func bestStreak(asOf now: Date = Date()) -> Int {
+        guard let earliest = log.keys.min(), var day = DayKey.date(fromKey: earliest) else { return 0 }
+        let cal = DayKey.calendar
+        let today = cal.startOfDay(for: now)
+        var doneBefore = [0] // done days before index i
+        var lastMiss: [String: Int] = [:] // week -> index of its latest missed day
+        var start = 0, best = 0, i = 0
+        while day <= today {
+            let done = isDone(on: day)
+            doneBefore.append(doneBefore[i] + (done ? 1 : 0))
+            if !done && isScheduled(on: day) && day < today {
+                let week = DayKey.weekKey(day)
+                // A second miss in the same week ends the stretch at the first one
+                if let p = lastMiss[week], p >= start { start = p + 1 }
+                lastMiss[week] = i
+            }
+            best = max(best, doneBefore[i + 1] - doneBefore[start])
+            guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+            i += 1
+        }
+        return best
+    }
+
     public var scheduleText: String {
         if days.isEmpty || days.count == 7 { return "Every day" }
         return days.sorted().map { DayKey.shortNames[$0 - 1] }.joined(separator: ", ")
@@ -723,12 +749,13 @@ public extension AppData {
         guard let month = cal.date(byAdding: .day, value: -30, to: now),
               let week = cal.date(byAdding: .day, value: -7, to: now) else { return }
         let monthKey = DayKey.key(month), weekKey = DayKey.key(week)
-        for i in reminders.indices {
-            reminders[i].doneDates.removeAll { $0 < monthKey }
-        }
+        // Finished one-time reminders go first: once their tick is dropped they'd look missed
         reminders.removeAll { r in
             guard let once = r.once else { return false }
             return once < weekKey && r.doneDates.contains(once)
+        }
+        for i in reminders.indices {
+            reminders[i].doneDates.removeAll { $0 < monthKey }
         }
     }
 }

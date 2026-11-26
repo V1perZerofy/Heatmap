@@ -43,6 +43,16 @@ enum Scheduler {
         center.getPendingNotificationRequests { pending in
             let old = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
             center.removePendingNotificationRequests(withIdentifiers: old)
+            // Snoozed reminders that were ticked off or deleted meanwhile shouldn't come back
+            let staleSnoozes = pending.filter { p in
+                guard p.identifier.hasPrefix(snoozePrefix) else { return false }
+                let info = p.content.userInfo
+                guard let id = info["reminder"] as? String else { return true }
+                guard let r = data.reminders.first(where: { $0.id == id }) else { return true }
+                guard let key = info["day"] as? String, let day = DayKey.date(fromKey: key) else { return false }
+                return r.isDone(on: day)
+            }
+            center.removePendingNotificationRequests(withIdentifiers: staleSnoozes.map(\.identifier))
             for request in requests {
                 center.add(request)
             }
