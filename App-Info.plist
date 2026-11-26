@@ -4,5 +4,9 @@
 <dict>
     <key>NSSupportsLiveActivities</key>
     <true/>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Shows your appointments next to your reminders in the Day tab.</string>
+    <key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+    <string>Adds new events to your calendar.</string>
 </dict>
 </plist>

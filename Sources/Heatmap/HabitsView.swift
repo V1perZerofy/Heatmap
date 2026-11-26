@@ -171,7 +171,14 @@ struct HabitCard: View {
             }
             .buttonStyle(.plain)
 
-            HeatmapView(habit: habit, grid: .year(year), showLabels: true, onTap: onDay)
+            NavigationLink {
+                HabitDetail(habitID: habit.id)
+            } label: {
+                HeatmapView(habit: habit, grid: .year(year), showLabels: true)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open \(habit.name) by month")
 
             if !habit.days.isEmpty || streak.freezeUsedThisWeek {
                 Text([habit.days.isEmpty ? nil : habit.scheduleText,
@@ -518,5 +525,178 @@ struct FocusView: View {
         if target <= 0 { return "Open session" }
         if elapsed >= target { return "Target reached" }
         return "\(Int(ceil((target - elapsed) / 60))) min to go"
+    }
+}
+
+
+// MARK: - Habit page with a month calendar
+
+struct HabitDetail: View {
+    @EnvironmentObject var model: AppModel
+    let habitID: String
+
+    @State private var month = DayKey.calendar.dateInterval(of: .month, for: Date())?.start ?? Date()
+    @State private var dayEdit: DayTarget?
+
+    private let cal = DayKey.calendar
+
+    var body: some View {
+        if let h = model.habit(habitID) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    statsCard(h)
+                    Card { monthGrid(h) }
+                    Card {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("This year").font(.headline)
+                            HeatmapView(habit: h, grid: .year(cal.component(.year, from: month)), showLabels: true)
+                        }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 30)
+            }
+            .navigationTitle(h.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(item: $dayEdit) { t in
+                DayEditor(habitID: t.habitID, day: t.day).presentationDetents([.height(340)])
+            }
+        } else {
+            Text("This habit was deleted.").foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: Stats
+
+    private func statsCard(_ h: Habit) -> some View {
+        let monthDays = days(in: month)
+        let done = monthDays.filter { h.isDone(on: $0) }.count
+        let scheduled = monthDays.filter { $0 <= Date() && h.isScheduled(on: $0) }.count
+        let minutes = monthDays.reduce(0) { $0 + (h.minutes(on: $1) ?? 0) }
+        return HStack(alignment: .top, spacing: 12) {
+            stat("\(h.streak().days)", "current streak", Palette.flame)
+            stat("\(bestStreak(h))", "best streak", .primary)
+            stat("\(done)/\(max(scheduled, done))", "days this month", .primary)
+            stat(formatMinutes(minutes), "this month", .primary)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private func stat(_ value: String, _ caption: String, _ color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Text(caption).font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Longest run of done days, skipping days the habit isn't scheduled on.
+    private func bestStreak(_ h: Habit) -> Int {
+        guard let first = h.log.keys.min(), var day = DayKey.date(fromKey: first) else { return 0 }
+        let end = cal.startOfDay(for: Date())
+        var best = 0, run = 0
+        while day <= end {
+            if h.isDone(on: day) {
+                run += 1
+                best = max(best, run)
+            } else if h.isScheduled(on: day) && day < end {
+                run = 0
+            }
+            guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return best
+    }
+
+    // MARK: Month calendar
+
+    private func days(in month: Date) -> [Date] {
+        guard let range = cal.range(of: .day, in: .month, for: month) else { return [] }
+        return range.compactMap { cal.date(byAdding: .day, value: $0 - 1, to: month) }
+    }
+
+    private func shift(_ months: Int) {
+        guard let m = cal.date(byAdding: .month, value: months, to: month) else { return }
+        withAnimation(.easeOut(duration: 0.2)) { month = m }
+    }
+
+    private func monthGrid(_ h: Habit) -> some View {
+        let list = days(in: month)
+        let blanks = list.first.map { DayKey.isoWeekday($0) - 1 } ?? 0
+        let today = cal.startOfDay(for: Date())
+        let isCurrent = cal.isDate(month, equalTo: today, toGranularity: .month)
+        return VStack(spacing: 10) {
+            HStack {
+                Button { shift(-1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }
+                    .accessibilityLabel("Previous month")
+                Spacer()
+                Text(month.formatted(.dateTime.month(.wide).year())).font(.headline)
+                Spacer()
+                Button { shift(1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44) }
+                    .disabled(isCurrent)
+                    .accessibilityLabel("Next month")
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 6) {
+                ForEach(0..<7, id: \.self) { i in
+                    Text(String(DayKey.shortNames[i].prefix(2)))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(0..<blanks, id: \.self) { _ in Color.clear.frame(height: 48) }
+                ForEach(list, id: \.self) { day in
+                    dayCell(h, day: day, today: today)
+                }
+            }
+            Text("Tap a day to change it. Swipe to switch months.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 30).onEnded { v in
+                if v.translation.width < -40, !isCurrent { shift(1) }
+                if v.translation.width > 40 { shift(-1) }
+            }
+        )
+    }
+
+    private func dayCell(_ h: Habit, day: Date, today: Date) -> some View {
+        let minutes = h.minutes(on: day)
+        let level = DayKey.level(minutes)
+        let future = day > today
+        let isToday = cal.isDate(day, inSameDayAs: today)
+        let scheduled = h.isScheduled(on: day)
+        let spoken = minutes.map { "\($0) minutes" } ?? "not done"
+        let label = "\(day.formatted(date: .complete, time: .omitted)), \(spoken)"
+        return Button {
+            dayEdit = DayTarget(habitID: h.id, day: day)
+        } label: {
+            VStack(spacing: 1) {
+                Text("\(cal.component(.day, from: day))")
+                    .font(.subheadline.weight(.semibold))
+                Text(minutes.map { $0 > 0 ? "\($0)m" : "done" } ?? " ")
+                    .font(.system(size: 10, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .foregroundStyle(level >= 3 ? Color.black : (scheduled ? Color.primary : Color.secondary))
+            .background(
+                level > 0 ? h.color.opacity(0.3 + 0.7 * Double(level) / 4) : Color.gray.opacity(scheduled ? 0.16 : 0.07),
+                in: RoundedRectangle(cornerRadius: 10)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10).stroke(Color.primary, lineWidth: isToday ? 2 : 0)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(future)
+        .opacity(future ? 0.35 : 1)
+        .accessibilityLabel(label)
     }
 }

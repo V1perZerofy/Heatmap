@@ -4,7 +4,7 @@ import UserNotifications
 import Shared
 
 enum AppTab: String {
-    case habits, food
+    case habits, food, day, lists
 }
 
 /// Which tab is open and whether the focus timer is showing. Notifications can switch tabs.
@@ -30,6 +30,7 @@ final class AppModel: ObservableObject {
         var loaded = Store.load() ?? AppData.defaults
         loaded.migrate()
         loaded.ensureAutoPicks()
+        loaded.tidyReminders()
         Store.save(loaded)
         data = loaded
         observer = NotificationCenter.default.addObserver(forName: .heatmapDataChanged, object: nil, queue: .main) { [weak self] _ in
@@ -42,6 +43,7 @@ final class AppModel: ObservableObject {
         var d = Store.load() ?? data
         d.migrate()
         d.ensureAutoPicks()
+        d.tidyReminders()
         data = d
     }
 
@@ -51,14 +53,14 @@ final class AppModel: ObservableObject {
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             Store.reloadWidgets()
-            Reminders.refresh(self.data, requestPermission: false)
+            Scheduler.refresh(self.data, requestPermission: false)
         }
         pending = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
     }
 
     func refreshReminders(requestPermission: Bool) {
-        Reminders.refresh(data, requestPermission: requestPermission)
+        Scheduler.refresh(data, requestPermission: requestPermission)
     }
 
     // MARK: Habits

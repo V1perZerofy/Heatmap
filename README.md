@@ -12,9 +12,18 @@ A small habit tracker with a food helper, built from Linux/Windows with xtool.
 - "How much time do you have?" picks a meal that fits, avoiding recent ones; "Another one" rerolls
 - If you haven't chosen by the deadline (16:30), the app's pick stays, and a reminder says what's
   for dinner and what's still missing
-- Shopping list for tonight or the next 3 days, sorted in the order you normaly walk through a supermarket
+- Shopping list for tonight or the next 3 days, sorted in the order you walk through a supermarket, plus things you add by hand
 - Your meals: name, cooking time, ingredients with their supermarket section
 - Your storage: what's at home. Ticking a shopping item adds it, "Cooked" takes out what's used up
+
+## Day
+- Today's calendar events (all calendars on the iPhone) and your reminders on one timeline
+- Reminders: once, daily, weekdays or chosen days; notification buttons Done and Later (45 min)
+- "About dinner" reminders include that day's meal; missed one-time reminders wait quietly under "Missed"
+- + adds a reminder or opens Apple's "New Event" screen
+
+## Lists
+- Any lists: to-dos, ideas, packing. Reusable lists get "Uncheck all"
 
 ## Build and install (Linux)
 
@@ -26,7 +35,7 @@ chmod +x xtool && sudo mv xtool /usr/local/bin/
 cd ~/Heatmap && xtool dev
 ```
 
-Renew every 7 days with `xtool dev`. The data stays.
+Renew every 7 days with `xtool dev`. Your data stays.
 
 ## Project layout
 - `Sources/Shared`: data model, storage, heatmap drawing, Live Activity attributes
