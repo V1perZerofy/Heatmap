@@ -282,6 +282,102 @@ public struct ShoppingItem: Identifiable, Hashable {
     public let amountText: String
 }
 
+// MARK: - Reminders and lists
+
+public struct Reminder: Codable, Hashable, Identifiable {
+    public var id: String
+    public var title: String
+    /// Time of day, minutes after midnight
+    public var minutes: Int
+    /// "yyyy-MM-dd" for a one-time reminder; nil repeats on `days`
+    public var once: String?
+    /// ISO weekdays for repeating reminders; empty means every day
+    public var days: [Int]
+    /// Adds tonight's meal to the notification
+    public var aboutDinner: Bool
+    /// Days it was ticked off
+    public var doneDates: [String]
+
+    public init(id: String = UUID().uuidString, title: String, minutes: Int, once: String? = nil, days: [Int] = [], aboutDinner: Bool = false, doneDates: [String] = []) {
+        self.id = id
+        self.title = title
+        self.minutes = minutes
+        self.once = once
+        self.days = days
+        self.aboutDinner = aboutDinner
+        self.doneDates = doneDates
+    }
+
+    enum CodingKeys: String, CodingKey { case id, title, minutes, once, days, aboutDinner, doneDates }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decodeIfPresent(String.self, forKey: .id)) ?? UUID().uuidString
+        title = (try? c.decodeIfPresent(String.self, forKey: .title)) ?? "Reminder"
+        minutes = (try? c.decodeIfPresent(Int.self, forKey: .minutes)) ?? 9 * 60
+        once = try? c.decodeIfPresent(String.self, forKey: .once)
+        days = (try? c.decodeIfPresent([Int].self, forKey: .days)) ?? []
+        aboutDinner = (try? c.decodeIfPresent(Bool.self, forKey: .aboutDinner)) ?? false
+        doneDates = (try? c.decodeIfPresent([String].self, forKey: .doneDates)) ?? []
+    }
+
+    public func occurs(on day: Date) -> Bool {
+        if let once { return once == DayKey.key(day) }
+        return days.isEmpty || days.contains(DayKey.isoWeekday(day))
+    }
+
+    public func isDone(on day: Date) -> Bool { doneDates.contains(DayKey.key(day)) }
+
+    public var repeatText: String {
+        if let once, let d = DayKey.date(fromKey: once) {
+            return d.formatted(.dateTime.weekday(.abbreviated).day().month())
+        }
+        if days.isEmpty || days.count == 7 { return "Every day" }
+        if Set(days) == Set([1, 2, 3, 4, 5]) { return "Weekdays" }
+        return days.sorted().map { DayKey.shortNames[$0 - 1] }.joined(separator: ", ")
+    }
+}
+
+public struct ListItem: Codable, Hashable, Identifiable {
+    public var id: String
+    public var text: String
+    public var done: Bool
+
+    public init(id: String = UUID().uuidString, text: String, done: Bool = false) {
+        self.id = id
+        self.text = text
+        self.done = done
+    }
+}
+
+public struct UserList: Codable, Hashable, Identifiable {
+    public var id: String
+    public var name: String
+    public var items: [ListItem]
+    /// Packing-style lists you tick through again and again
+    public var reusable: Bool
+
+    public init(id: String = UUID().uuidString, name: String, items: [ListItem] = [], reusable: Bool = false) {
+        self.id = id
+        self.name = name
+        self.items = items
+        self.reusable = reusable
+    }
+}
+
+/// Something you added to the shopping list by hand.
+public struct ExtraItem: Codable, Hashable, Identifiable {
+    public var id: String
+    public var name: String
+    public var aisle: Aisle
+
+    public init(id: String = UUID().uuidString, name: String, aisle: Aisle? = nil) {
+        self.id = id
+        self.name = name
+        self.aisle = aisle ?? Aisle.guess(name)
+    }
+}
+
 // MARK: - Settings
 
 public struct AppSettings: Codable, Hashable {
@@ -326,9 +422,13 @@ public struct AppData: Codable {
     public var picks: [String: MealPick]
     /// What's at home right now
     public var pantry: [PantryItem]
+    /// Added to the shopping list by hand
+    public var extraShopping: [ExtraItem]
+    public var reminders: [Reminder]
+    public var lists: [UserList]
     public var settings: AppSettings
 
-    public static let currentVersion = 4
+    public static let currentVersion = 5
 
     public static var defaults: AppData {
         AppData(
@@ -342,20 +442,27 @@ public struct AppData: Codable {
             meals: StarterMeals.all + FamilyMeals.all,
             picks: [:],
             pantry: [],
+            extraShopping: [],
+            reminders: [Reminder(title: "Cook", minutes: 19 * 60, aboutDinner: true)],
+            lists: [],
             settings: AppSettings()
         )
     }
 
-    public init(version: Int, habits: [Habit], meals: [Meal], picks: [String: MealPick], pantry: [PantryItem], settings: AppSettings) {
+    public init(version: Int, habits: [Habit], meals: [Meal], picks: [String: MealPick], pantry: [PantryItem],
+                extraShopping: [ExtraItem], reminders: [Reminder], lists: [UserList], settings: AppSettings) {
         self.version = version
         self.habits = habits
         self.meals = meals
         self.picks = picks
         self.pantry = pantry
+        self.extraShopping = extraShopping
+        self.reminders = reminders
+        self.lists = lists
         self.settings = settings
     }
 
-    enum CodingKeys: String, CodingKey { case version, habits, meals, picks, pantry, settings }
+    enum CodingKeys: String, CodingKey { case version, habits, meals, picks, pantry, extraShopping, reminders, lists, settings }
 
     /// Missing fields fall back to defaults, so files from older versions still load.
     public init(from decoder: Decoder) throws {
@@ -369,6 +476,9 @@ public struct AppData: Codable {
         meals = value(.meals, [])
         picks = value(.picks, [:])
         pantry = value(.pantry, [])
+        extraShopping = value(.extraShopping, [])
+        reminders = value(.reminders, [])
+        lists = value(.lists, [])
         settings = value(.settings, d.settings)
     }
 
@@ -396,6 +506,11 @@ public struct AppData: Codable {
             // The family recipes, added once; ones you already have by name are skipped
             let have = Set(meals.map { $0.name.lowercased() })
             meals += FamilyMeals.all.filter { !have.contains($0.name.lowercased()) }
+        }
+        if version < 5 {
+            if !reminders.contains(where: { $0.title.lowercased() == "cook" }) {
+                reminders.append(Reminder(title: "Cook", minutes: 19 * 60, aboutDinner: true))
+            }
         }
         version = AppData.currentVersion
     }
@@ -574,6 +689,47 @@ public extension AppData {
         picks[key] = p
         if let i = meals.firstIndex(where: { $0.id == p.mealID }) { meals[i].lastEaten = key }
         for name in usedUp where !isAlwaysAtHome(name) { removeFromPantry(name) }
+    }
+}
+
+// MARK: - Reminder helpers
+
+public extension AppData {
+    func reminders(on day: Date) -> [Reminder] {
+        reminders.filter { $0.occurs(on: day) }.sorted { $0.minutes < $1.minutes }
+    }
+
+    /// One-time reminders whose day has passed without being ticked off
+    func missedReminders(now: Date = Date()) -> [Reminder] {
+        let today = DayKey.key(now)
+        return reminders
+            .filter { r in
+                guard let once = r.once else { return false }
+                return once < today && !r.doneDates.contains(once)
+            }
+            .sorted { ($0.once ?? "") < ($1.once ?? "") }
+    }
+
+    mutating func setReminderDone(_ id: String, on day: Date, _ done: Bool) {
+        guard let i = reminders.firstIndex(where: { $0.id == id }) else { return }
+        let key = DayKey.key(day)
+        reminders[i].doneDates.removeAll { $0 == key }
+        if done { reminders[i].doneDates.append(key) }
+    }
+
+    /// Drops ticks older than 30 days and finished one-time reminders older than a week.
+    mutating func tidyReminders(now: Date = Date()) {
+        let cal = DayKey.calendar
+        guard let month = cal.date(byAdding: .day, value: -30, to: now),
+              let week = cal.date(byAdding: .day, value: -7, to: now) else { return }
+        let monthKey = DayKey.key(month), weekKey = DayKey.key(week)
+        for i in reminders.indices {
+            reminders[i].doneDates.removeAll { $0 < monthKey }
+        }
+        reminders.removeAll { r in
+            guard let once = r.once else { return false }
+            return once < weekKey && r.doneDates.contains(once)
+        }
     }
 }
 

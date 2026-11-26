@@ -406,17 +406,28 @@ struct ShoppingCard: View {
     @EnvironmentObject var model: AppModel
     let now: Date
     @Binding var days: Int
+    @State private var newExtra = ""
+
+    private func addExtra() {
+        let v = newExtra.trimmingCharacters(in: .whitespaces)
+        guard !v.isEmpty else { return }
+        if !model.data.extraShopping.contains(where: { $0.name.lowercased() == v.lowercased() }) {
+            model.data.extraShopping.append(ExtraItem(name: v))
+        }
+        newExtra = ""
+    }
 
     var body: some View {
         let items = model.data.shopping(days: days, now: now)
+        let extras = model.data.extraShopping
         let done = items.filter { model.data.hasAtHome($0.name) }.count
         Card {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("Shopping").font(.headline)
                     Spacer()
-                    if !items.isEmpty {
-                        Text("\(done) of \(items.count)").foregroundStyle(.secondary).monospacedDigit()
+                    if !items.isEmpty || !extras.isEmpty {
+                        Text("\(done) of \(items.count + extras.count)").foregroundStyle(.secondary).monospacedDigit()
                     }
                 }
                 Picker("Shop for", selection: $days) {
@@ -425,12 +436,23 @@ struct ShoppingCard: View {
                 }
                 .pickerStyle(.segmented)
 
-                if items.isEmpty {
+                HStack {
+                    TextField("Add something else, e.g. toilet paper", text: $newExtra)
+                        .submitLabel(.done)
+                        .onSubmit(addExtra)
+                    if !newExtra.trimmingCharacters(in: .whitespaces).isEmpty {
+                        Button("Add", action: addExtra)
+                    }
+                }
+                .padding(.vertical, 4)
+
+                if items.isEmpty && extras.isEmpty {
                     Text("Nothing to buy.").foregroundStyle(.secondary)
                 }
                 ForEach(Aisle.allCases) { aisle in
                     let group = items.filter { $0.aisle == aisle }
-                    if !group.isEmpty {
+                    let extraGroup = extras.filter { $0.aisle == aisle }
+                    if !group.isEmpty || !extraGroup.isEmpty {
                         Text(aisle.title)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
@@ -442,10 +464,16 @@ struct ShoppingCard: View {
                                 model.data.setAtHome(item, !have)
                             }
                         }
+                        ForEach(extraGroup) { extra in
+                            // Ticking a hand-added item takes it off the list
+                            CheckRow(text: extra.name, checked: false) {
+                                withAnimation { model.data.extraShopping.removeAll { $0.id == extra.id } }
+                            }
+                        }
                     }
                 }
-                if !items.isEmpty {
-                    Text("In the order you walk through the shop. Ticked means it's in your storage.")
+                if !items.isEmpty || !extras.isEmpty {
+                    Text("In the order you walk through the shop. Ticked meal ingredients go to your storage; things you added yourself disappear when ticked.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

@@ -5,9 +5,17 @@ import Shared
 /// Two kinds of local reminders, rebuilt from current data whenever it changes or the app opens:
 /// - Food at the deadline (16:30): tonight's meal and what's still missing
 /// - Habits in the evening: only the ones still open, each with its own "done" button
-enum Reminders {
+enum Scheduler {
     static let prefix = "r."
     static let donePrefix = "done."
+    /// Snoozed reminders use their own prefix, so rebuilding doesn't cancel them
+    static let snoozePrefix = "s."
+    static let reminderCategory = "reminder"
+    static let reminderDone = "reminder.done"
+    static let reminderLater = "reminder.later"
+    static let laterMinutes = 45
+    /// iOS keeps at most 64 pending notifications per app
+    static let reminderBudget = 40
     static let daysAhead = 7
 
     static func refresh(_ data: AppData, requestPermission: Bool) {
@@ -100,6 +108,37 @@ enum Reminders {
                 }
             }
         }
+        // Your reminders, soonest first, within the budget
+        categories.insert(UNNotificationCategory(
+            identifier: reminderCategory,
+            actions: [
+                UNNotificationAction(identifier: reminderDone, title: "Done", options: []),
+                UNNotificationAction(identifier: reminderLater, title: "Later (\(laterMinutes) min)", options: []),
+            ],
+            intentIdentifiers: [], options: []))
+        var reminderRequests: [(Date, String, String, String, [String: String])] = []
+        for offset in 0..<daysAhead {
+            guard let day = cal.date(byAdding: .day, value: offset, to: today) else { continue }
+            let key = DayKey.key(day)
+            for r in data.reminders(on: day) where !r.isDone(on: day) {
+                var body = ""
+                if r.aboutDinner, let pick = data.pick(for: day) {
+                    body = pick.leftover ? "Leftovers: \(pick.meal.name), just heat it up." : "\(pick.meal.name), \(pick.meal.minutes) min."
+                }
+                reminderRequests.append((at(day, r.minutes), "rem.\(r.id).\(key)", r.title, body, ["tab": AppTab.day.rawValue, "day": key, "reminder": r.id]))
+            }
+        }
+        for (date, id, title, body, info) in reminderRequests.filter({ $0.0 > now }).sorted(by: { $0.0 < $1.0 }).prefix(reminderBudget) {
+            add(id, title, body, date, info: info, category: reminderCategory)
+        }
         return (requests, categories)
+    }
+
+    /// "Later" on a reminder: the same notification again in 45 minutes.
+    static func snooze(_ content: UNNotificationContent) {
+        guard let mutable = content.mutableCopy() as? UNMutableNotificationContent else { return }
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(laterMinutes * 60), repeats: false)
+        let id = snoozePrefix + UUID().uuidString
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: mutable, trigger: trigger))
     }
 }
